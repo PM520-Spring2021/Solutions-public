@@ -6,5 +6,5 @@ I'l also add an Rmarkdown cheatsheet to this repo.
 * Week 1
 
 + Distance-Finder: posted
-+ Hypercube: not yet posted
-+ Coin-tossing: not yet posted
++ Hypercube: posted
+
