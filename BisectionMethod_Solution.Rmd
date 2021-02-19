@@ -1,0 +1,63 @@
+---
+title: "Bisection method"
+author: "Paul M"
+date: "12/8/2020"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## Bisection Method
+
+This implements the Bisection method discussed in week 3.
+Set-up some global variables and some functionsd to work with
+```{r setup}
+Tolerance <- 1e-3   # The accuracy we insist upon
+
+f1 <- function(x) return (x^3)
+
+f2 <- function(x) return (x^3-2*x^2+x)
+
+f3 <- function(x) sin(x)   # R defaults to returning the last thing it evaluated in a function
+```
+
+
+Here's some code for the Bisection method, set-up to work as a function
+```{r bisection}
+OurBisection <- function(f,tol,StartingValues){
+  Left <- StartingValues[1]  # the leftmost start point
+  Right <- StartingValues[2]  # the rightmost start point
+  Diff <- Right-Left # how far
+  It <- 1
+  #cat("\nStarting: f=",f," left=",Left," Right=",Right)
+  #cat(" f(Left)=",f(Left))
+  # main loop
+  while (Diff>tol){
+    cat("\n",It," ",Left," ",Right)
+    Middle <- (Left+Right)/2
+    if (f(Left)*f(Middle)<0){
+      Right <- Middle
+    }else{
+      Left <- Middle
+    }
+    Diff <- Right-Left
+  }
+  return ((Right+Left)/2)
+}
+```
+
+Now let's test it out...
+```{r tests}
+TestFunctions <- c(f1,f2,f3)
+for (f in TestFunctions){
+  Root1 <- OurBisection(f1,1e-4,c(-3,7))
+  curve(f,from=-3,to=7,main=c("Root shown in red at x=",Root1))
+  abline(v=Root1,col="red",lty=2)
+  abline(h=0,col="blue")
+}
+
+
+```
+
