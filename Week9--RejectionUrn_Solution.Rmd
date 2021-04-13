@@ -1,0 +1,212 @@
+---
+title: "RejectionUrn_solution"
+author: "Paul M"
+date: "2/9/2021"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## Solution to Rejection Urn assignment
+
+This is an example answer for assignment 4, in which we run the rejection
+method for an Urn model.
+So the goal is to look at the posterior distribution for the weight of the
+black ball in an Urn conditioned on the number of different colors observed in the urn.
+
+This particular code is written in "object-oriented" style. 
+This is something that R is not really designed for, but many of us who learned
+languages like C++ are used to wrriten object-oriented code, so I wanted to see
+how well R could mimic that style of coding. 
+
+As ever, we start with a few global variables...
+```{r globals}
+set.seed(87)
+ColorBreaks <- seq(0.5,10.5,1)
+```
+
+We also use a library that allows R to display a "progress bar" that shows
+how much long the code is likely to run.
+```{r progress}
+#install.packages("progress")
+library(progress)
+```
+
+
+Now, the object oriented bit! We set up a giant function to represent the things in the Urn and 
+all the operations we wil need to perform on them.
+```{r urn}
+Urn <- function(StartingConfig,FinalNumberOfBalls,UseMutationBall,WeightOfMutationBall){
+  UrnThings <- list(
+    # set up the elements of the Urn
+    Balls = mat.or.vec(1,FinalNumberOfBalls),    # Note that we need to use "=" here rather than "<-"
+    InitialNumberOfBalls = length(StartingConfig),
+    UseMutationBall = UseMutationBall,
+    MutationBallWeight = WeightOfMutationBall,
+    StartingConfiguration = StartingConfig
+  )
+  
+  # A sanity checks
+  if (FinalNumberOfBalls<length(StartingConfig)){
+    cat("Too many balls in starting configuration. Exit.")
+  }
+  
+  # Initialize the laas in the Urn to start with
+  Nballs <- length(StartingConfig)
+  for (i in 1:Nballs){
+    UrnThings$Balls[i] <- StartingConfig[i]
+  }
+  
+  ###############################################################################
+  ### Class functions	- these are the functions that will operate on the Urn  ###
+  ###############################################################################
+  
+  UrnThings$DrawFromUrn<-function(NumBalls){
+    r<-sample(1:NumBalls,1)
+    return (UrnThings$Balls[r])
+  }
+  
+  UrnThings$RunUrnModel<-function(){
+    HowManyBallsDoWeNeed<-length(UrnThings$Balls)
+    Nballs<-length(UrnThings$StartingConfiguration)
+    # set the starting configuration
+    for (i in 1:length(StartingConfig)){
+      UrnThings$Balls[i]<-StartingConfig[i]
+    }
+    # how many colors do we have already?
+    iColorCounter <- length(apply(UrnThings$Balls,1,unique)) # this is going to keep track of how many new colors we use
+    while (Nballs < HowManyBallsDoWeNeed){
+      # do we pick the black ball (if there is one)?
+      if (UrnThings$UseMutationBall==1){   # this is not actually represented by a ball in the urn
+        p<-runif(1,0,1)
+        if (p<UrnThings$MutationBallWeight/(UrnThings$MutationBallWeight+Nballs)){
+          #  we picked the black ball
+          WhichToCopy<-0    # O codes the black ball
+        }else{
+          WhichToCopy<-UrnThings$DrawFromUrn(Nballs)
+        }
+      }else{
+        WhichToCopy<-UrnThings$DrawFromUrn(Nballs)
+      }
+      if (WhichToCopy==0){    # 0 is used to code the black ball
+        # change the color of some other ball
+        IndexOfBall<-ceiling(runif(1,0,1))
+        iColorCounter<-iColorCounter+1
+        #colorname<-paste("NewColor",iColorCounter)
+        UrnThings$Balls[IndexOfBall]<-iColorCounter	
+      }else{
+        Nballs<-Nballs+1
+        UrnThings$Balls[Nballs]<-WhichToCopy
+      }
+      #cat(WhichToCopy," ")
+    }
+    #return(U)
+  }
+  
+  UrnThings$CountNumberOfColorOfFirstBall<-function(){
+    ColorNeeded<-UrnThings$Balls[1]
+    return (sum(UrnThings$Balls==ColorNeeded))
+  }
+  
+  UrnThings$CountNumberOfColors<-function(){
+    # counts the number of (non-black colors in the urn)
+    NumColors<-length(table(Urn$Balls))
+    return (NumColors)
+  }
+  
+  UrnThings$FindCommonestColor<-function(){
+    Commonest<-max(table(Urn$Balls))
+    return (Commonest)
+  }
+  
+  ###############################################################################
+  ################### End of class functions ####################################
+  ###############################################################################
+
+  
+  
+  
+  UrnThings<-list2env(UrnThings)     # this is needed, but I don't know why!	
+  class(UrnThings)<-"Urn"   # the name of the class we have created
+
+  return(UrnThings)
+}
+```
+
+Having defined a new Urn class, we can define the way some common functions will work on it.
+Here, we define how it will be printed.
+```{r print}
+print.Urn <- function(U){
+  if (class(U)!="Urn") stop();
+  cat("Balls: ")
+  cat(U$Balls)
+  cat("\nStarting configuration: ")
+  cat(U$StartingConfiguration)
+  cat(paste("\nUse Black ball?: ",U$UseMutationBall,"\nBlack ball weight: ",U$MutationBallWeight))
+}
+```
+
+
+Let's test it out. First, we set up the scenario we are considering
+```{r test}
+```
+
+
+Now we will find the posterior distribution for the weight of the black ball when there is a specificed number of non-black color in the urn are at the end.
+```{r sims}
+RejectionAlg <- function(NoOfBalls,NumberOfColorsAtEnd,NoReps,MaxWeightOfBlackBall){
+  ThisUrn<-Urn(c(1,1),NoOfBalls,1,1)   # The urn we will use for the simulations
+  AcceptedBlackBallWeights <- rep(0,NoReps)
+  NumberOfAcceptances <- 0
+  while (NumberOfAcceptances < NoReps){
+    ThisUrn$MutationBallWeight<-runif(1,0,MaxWeightOfBlackBall)  # set the black  weight
+    ThisUrn$RunUrnModel()   # simulate the urn using this weight
+    #cat("\nlt=",length(table(ThisUrn$Balls)))
+    if (length(table(ThisUrn$Balls)) == NumberOfColorsAtEnd){
+      # accept
+      AcceptedBlackBallWeights[NumberOfAcceptances+1] <- ThisUrn$MutationBallWeight
+      NumberOfAcceptances <- NumberOfAcceptances + 1
+      #cat("\nw=",AcceptedBlackBallWeights[NumberOfAcceptances])
+    }else
+    {
+      #reject - we don't have to do anything here
+    }
+  }
+  return(AcceptedBlackBallWeights)
+}
+ptm <- proc.time()[3]
+ConditionedWeights <- RejectionAlg(10,1,10000,20)
+ptm2 <- proc.time()[3]
+```
+
+We will now have NoReps accepted weights, so plot a histogram to see what they look like
+`# posterior distribu\tion f(weight|HowManyColorsNeeded) looks like
+```{r plot}
+hist(ConditionedWeights,breaks=125,main=paste("Distribution of weights when there is 1 non-black color \nTime taken to generate samples: ",floor(ptm2-ptm)," seconds"))
+```
+
+If we repeat the analysis conditioning on other numbers of different colors being present at the end, you will see that the posterior distribution for the weight of the black ball shifts to the right as the number of observed colors increases, as would be expected.
+
+```{r}
+ptm <- proc.time()[3]
+ConditionedWeights <- RejectionAlg(10,2,10000,10)
+ptm2 <- proc.time()[3]
+hist(ConditionedWeights,breaks=125,main=paste("Distribution of weights when there are 2 non-black colors \nTime taken to generate samples: ",floor(ptm2-ptm)," seconds"))
+
+ptm <- proc.time()[3]
+ConditionedWeights <- RejectionAlg(10,3,10000,10)
+ptm2 <- proc.time()[3]
+hist(ConditionedWeights,breaks=125,main=paste("Distribution of weights when there are 3 non-black colors \nTime taken to generate samples: ",floor(ptm2-ptm)," seconds"))
+
+ptm <- proc.time()[3]
+ConditionedWeights <- RejectionAlg(10,4,10000,10)
+ptm2 <- proc.time()[3]
+hist(ConditionedWeights,breaks=125,main=paste("Distribution of weights when there are 4 non-black colors \nTime taken to generate samples: ",floor(ptm2-ptm)," seconds"))
+
+ptm <- proc.time()[3]
+ConditionedWeights <- RejectionAlg(10,5,10000,10)
+ptm2 <- proc.time()[3]
+hist(ConditionedWeights,breaks=125,main=paste("Distribution of weights when there are 5 non-black colors \nTime taken to generate samples: ",floor(ptm2-ptm)," seconds"))
+```
